@@ -2,6 +2,7 @@ name: manual-add
 
 # 회차 하나를 수동으로 추가한다 (weekly-fetch 실패 시 백업).
 # 검증을 통과할 때만 커밋하고, 커밋 후 Pages를 배포한다.
+# dry_run(기본값)이면 추가·검증까지만 하고 결과 JSON을 로그에 출력한다 — 커밋·배포 안 함.
 on:
   workflow_dispatch:
     inputs:
@@ -27,6 +28,11 @@ on:
         required: false
         type: string
         default: ""
+      dry_run:
+        description: "시험 실행 — 추가·검증만 하고 커밋·배포는 하지 않음"
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -61,7 +67,17 @@ jobs:
         run: python scripts/validate.py
       - name: 스크립트 테스트
         run: python -m unittest discover -s tests
+      - name: 결과 출력 (dry run)
+        if: ${{ inputs.dry_run }}
+        run: |
+          echo "::notice::dry run — 검증을 통과했어요. 커밋·배포는 하지 않아요."
+          echo "추가된 회차:"
+          python -c "import json; print(json.dumps(json.load(open('docs/latest.json'))['draws'][-1], ensure_ascii=False))"
+          echo "결과 docs/latest.json:"
+          cat docs/latest.json
+          git diff --stat
       - name: 커밋
+        if: ${{ !inputs.dry_run }}
         env:
           ROUND: ${{ inputs.round }}
         run: |
@@ -73,6 +89,7 @@ jobs:
 
   deploy:
     needs: add
+    if: ${{ !inputs.dry_run }}
     permissions:
       contents: read
       pages: write
