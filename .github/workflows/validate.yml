@@ -1,0 +1,21 @@
+name: validate
+
+# 브랜치·PR에서 데이터와 스크립트를 검증한다. (main 배포 전 검증은 pages.yml이 한다)
+on:
+  pull_request:
+  push:
+    branches-ignore: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python scripts/validate.py
+      - run: python -m unittest discover -s tests -v

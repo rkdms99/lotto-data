@@ -1,0 +1,80 @@
+name: manual-add
+
+# 회차 하나를 수동으로 추가한다 (weekly-fetch 실패 시 백업).
+# 검증을 통과할 때만 커밋하고, 커밋 후 Pages를 배포한다.
+on:
+  workflow_dispatch:
+    inputs:
+      round:
+        description: "회차 (현재 마지막 회차 + 1)"
+        required: true
+        type: number
+      numbers:
+        description: "당첨번호 6개, 쉼표로 구분 (예: 1,5,18,23,27,28)"
+        required: true
+        type: string
+      bonus:
+        description: "보너스 번호"
+        required: true
+        type: number
+      prize1:
+        description: "1등 1게임당 당첨금 (선택)"
+        required: false
+        type: string
+        default: ""
+      first_winners:
+        description: "1등 당첨 게임 수 (선택)"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: data-write
+  cancel-in-progress: false
+
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 회차 추가 (검증 통과 시에만 파일 변경)
+        # 입력값은 셸 명령에 직접 넣지 않고 환경변수로 넘긴다 (스크립트 주입 방지).
+        env:
+          ROUND: ${{ inputs.round }}
+          NUMBERS: ${{ inputs.numbers }}
+          BONUS: ${{ inputs.bonus }}
+          PRIZE1: ${{ inputs.prize1 }}
+          FIRST_WINNERS: ${{ inputs.first_winners }}
+        run: >-
+          python scripts/add_draw.py
+          --round "$ROUND" --numbers "$NUMBERS" --bonus "$BONUS"
+          --prize1 "$PRIZE1" --first-winners "$FIRST_WINNERS"
+      - name: 데이터 검증
+        run: python scripts/validate.py
+      - name: 스크립트 테스트
+        run: python -m unittest discover -s tests
+      - name: 커밋
+        env:
+          ROUND: ${{ inputs.round }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/latest.json
+          git commit -m "data: 제 ${ROUND}회 수동 추가"
+          git push
+
+  deploy:
+    needs: add
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml

@@ -1,0 +1,59 @@
+name: weekly-fetch
+
+# 매주 일요일 01:00 KST(토요일 16:00 UTC)에 최신 회차를 수집한다.
+# 요청은 1번만 보내고, 대기 화면·형식 변경·값 검증 실패 시 워크플로를 실패로 끝낸다
+# (데이터는 바꾸지 않음, GitHub이 실패 알림을 보낸다). 실패하면 manual-add로 추가한다.
+on:
+  schedule:
+    - cron: "0 16 * * 6"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: data-write
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      changed: ${{ steps.commit.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 최신 회차 수집 (검증 통과 시에만 파일 변경)
+        run: python scripts/fetch_latest.py
+      - name: 데이터 검증
+        run: python scripts/validate.py
+      - name: 스크립트 테스트
+        run: python -m unittest discover -s tests
+      - name: 커밋
+        id: commit
+        run: |
+          if git diff --quiet -- docs/latest.json; then
+            echo "변경 없음"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          LATEST=$(python -c "import json; print(json.load(open('docs/latest.json'))['draws'][-1]['round'])")
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/latest.json
+          git commit -m "data: 제 ${LATEST}회 자동 수집"
+          git push
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: fetch
+    if: needs.fetch.outputs.changed == 'true'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml

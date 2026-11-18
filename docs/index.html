@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>로또 최근 당첨번호</title>
+<meta name="description" content="로또 6/45 최근 20회차 당첨번호 JSON (개인 프로젝트)">
+<style>
+  :root {
+    --bg: #f8f9ff; --surface: #ffffff; --text: #161c25; --muted: #5b6270; --line: #e3e8f5;
+    --accent: #0059b9; --notice-bg: #eef3ff; --code-bg: #eff4ff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #11151c; --surface: #1a1f28; --text: #e8ecf4; --muted: #a3abb9; --line: #2a3140;
+      --accent: #8fb6ff; --notice-bg: #1d2a42; --code-bg: #222a37;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 32px 0 8px; }
+  p { margin: 6px 0; }
+  .sub { color: var(--muted); margin-bottom: 20px; }
+  .notice { background: var(--notice-bg); border-radius: 12px; padding: 14px 16px; font-weight: 600; }
+  .notice small { display: block; font-weight: 400; color: var(--muted); margin-top: 4px; }
+  code { background: var(--code-bg); padding: 2px 6px; border-radius: 6px; font-size: 13px; word-break: break-all; }
+  a { color: var(--accent); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { font-size: 13px; color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  .ball { display: inline-block; min-width: 26px; text-align: center; font-weight: 700; }
+  .bonus { color: var(--muted); }
+  #status { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>로또 6/45 최근 당첨번호</h1>
+  <p class="sub">최근 20회차 당첨번호를 JSON으로 제공하는 개인 프로젝트입니다.</p>
+
+  <p class="notice">
+    이 페이지는 동행복권과 무관한 개인 프로젝트입니다.
+    <small>출처: 동행복권 회차별 당첨번호 (<a href="https://www.dhlottery.co.kr/lt645/result">dhlottery.co.kr</a>).
+      정확한 결과는 동행복권 공식 발표를 확인해 주세요.</small>
+  </p>
+
+  <h2>데이터</h2>
+  <p><a href="latest.json"><code>latest.json</code></a> — 최근 20회차 롤링 윈도우. 새 회차가 추가되면 가장 오래된 회차가 빠집니다.</p>
+  <p>매주 일요일 01:00(한국 시각)에 갱신을 시도하며, 검증을 통과한 데이터만 배포됩니다.
+    스키마는 <a href="https://github.com/rkdms99/lotto-data#스키마">저장소 README</a>를 참고하세요.</p>
+
+  <h2>최근 회차</h2>
+  <p id="status">불러오는 중…</p>
+  <div class="card" hidden id="card">
+    <table>
+      <thead><tr><th>회차</th><th>추첨일</th><th>당첨번호</th><th>보너스</th><th>1등</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+</main>
+<script>
+  (async () => {
+    const status = document.getElementById('status');
+    try {
+      const res = await fetch('latest.json', { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const doc = await res.json();
+      const rows = document.getElementById('rows');
+      for (const d of [...doc.draws].reverse()) {
+        const tr = document.createElement('tr');
+        const cells = [
+          `${d.round}회`,
+          d.drawDate,
+          d.numbers.map(n => `<span class="ball">${n}</span>`).join(' '),
+          `<span class="ball bonus">${d.bonus}</span>`,
+          d.firstWinners === undefined ? '-' : (d.firstWinners === 0 ? '당첨자 없음' : `${d.firstWinners}명`),
+        ];
+        // 값은 검증된 숫자·날짜만 들어 있다.
+        tr.innerHTML = cells.map(c => `<td>${c}</td>`).join('');
+        rows.appendChild(tr);
+      }
+      status.textContent = `업데이트: ${doc.updatedAt ?? '-'} · 제 ${doc.draws[0].round}회 ~ 제 ${doc.draws.at(-1).round}회`;
+      document.getElementById('card').hidden = false;
+    } catch (e) {
+      status.textContent = '데이터를 불러오지 못했어요 (' + e.message + ')';
+    }
+  })();
+</script>
+</body>
+</html>

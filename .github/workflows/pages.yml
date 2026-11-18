@@ -1,0 +1,46 @@
+name: pages
+
+# docs/를 GitHub Pages로 배포한다. 같은 작업 안에서 검증을 먼저 하고,
+# 실패하면 배포 단계까지 가지 않는다.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  # manual-add / weekly-fetch가 커밋한 뒤 호출한다.
+  # (기본 토큰으로 push하면 push 이벤트 워크플로가 실행되지 않기 때문)
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 데이터 검증
+        run: python scripts/validate.py
+      - name: 스크립트 테스트
+        run: python -m unittest discover -s tests -v
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deployment
+        uses: actions/deploy-pages@v4
